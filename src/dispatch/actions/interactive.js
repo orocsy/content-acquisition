@@ -2,116 +2,91 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
 const { safeMkdir, sleep } = require('../../core/utils');
-
-function downloadImage(src, destPath) {
-  if (!src || src.startsWith('data:')) return false;
-  const res = spawnSync('curl', ['-sL', '--max-time', '30', '--retry', '2', '-o', destPath, src], { timeout: 35000 });
-  return res.status === 0 && fs.existsSync(destPath) && fs.statSync(destPath).size > 0;
-}
 
 async function discoverInteractiveWidgets(page) {
   return await page.evaluate(() => {
-    function isVisible(el) {
+    function isVisible(el, minW = 1, minH = 1) {
       if (!el) return false;
       const rect = el.getBoundingClientRect();
       const st = window.getComputedStyle(el);
-      return rect.width > 80 && rect.height > 80 && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+      return rect.width > minW && rect.height > minH && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
     }
-
-    function findNearestContainer(counterEl) {
-      let el = counterEl;
+    function nearestWidgetContainer(nextBtn) {
+      let el = nextBtn;
       while (el && el !== document.body) {
         const rect = el.getBoundingClientRect();
         const text = (el.innerText || '').replace(/\s+/g, ' ').trim();
-        const hasImages = el.querySelectorAll('img').length > 0;
-        const hasButtons = el.querySelectorAll('button, [role="button"], a').length > 0;
-        if (rect.width > 300 && rect.height > 250 && hasImages && hasButtons && text.includes('/')) {
-          return el;
-        }
+        if (rect.width > 300 && rect.height > 220 && /\b\d+\s*\/\s*\d+\b/.test(text)) return el;
         el = el.parentElement;
       }
-      return counterEl.parentElement || counterEl;
+      return nextBtn.parentElement || nextBtn;
     }
-
-    function buttonLooksLikeNext(btn) {
-      const txt = [btn.innerText, btn.getAttribute('aria-label'), btn.getAttribute('title')]
-        .filter(Boolean).join(' ').trim().toLowerCase();
-      const html = (btn.innerHTML || '').toLowerCase();
-      return /next button|next slide|next|→|›|⟩/.test(txt) || /next slide|arrow|chevron/.test(html);
-    }
-
-    function buttonLooksLikePrev(btn) {
-      const txt = [btn.innerText, btn.getAttribute('aria-label'), btn.getAttribute('title')]
-        .filter(Boolean).join(' ').trim().toLowerCase();
-      const html = (btn.innerHTML || '').toLowerCase();
-      return /previous button|previous slide|prev|back|←|‹|⟨/.test(txt) || /previous slide/.test(html);
-    }
-
-    const counters = [...document.querySelectorAll('div, span, p, strong')].filter((el) => {
-      if (!isVisible(el)) return false;
-      const text = (el.innerText || '').replace(/\s+/g, ' ').trim();
-      return /^\d+\s*\/\s*\d+$/.test(text);
-    });
-
-    const found = [];
-    let idx = 0;
-    const seen = new Set();
-
-    for (const counterEl of counters) {
-      const container = findNearestContainer(counterEl);
-      if (!container || !isVisible(container)) continue;
-      const key = container.innerText.slice(0, 200);
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const buttons = [...container.querySelectorAll('button, [role="button"], a')].filter((el) => {
-        const r = el.getBoundingClientRect();
-        return r.width > 10 && r.height > 10;
-      });
-      const nextBtn = buttons.find(buttonLooksLikeNext);
-      if (!nextBtn) continue;
-      const prevBtn = buttons.find(buttonLooksLikePrev) || null;
-
-      idx += 1;
-      const widgetId = `openclaw-interactive-${idx}`;
-      container.setAttribute('data-openclaw-interactive-id', widgetId);
-      nextBtn.setAttribute('data-openclaw-interactive-next', widgetId);
-      if (prevBtn) prevBtn.setAttribute('data-openclaw-interactive-prev', widgetId);
-
+    const nextButtons = [...document.querySelectorAll('[data-testid="canvas-animation-next-slide"]')].filter((el) => isVisible(el, 10, 10));
+    return nextButtons.map((nextBtn, idx) => {
+      const container = nearestWidgetContainer(nextBtn);
+      if (!container || !isVisible(container, 250, 180)) return null;
       const text = (container.innerText || '').replace(/\s+/g, ' ').trim();
       const match = text.match(/\b(\d+)\s*\/\s*(\d+)\b/);
-      const imageUrls = [...container.querySelectorAll('img')]
-        .map((img) => img.src || '')
-        .filter((src) => src && !src.startsWith('data:'));
-
-      found.push({
-        widgetId,
-        currentSlide: match ? Number(match[1]) : null,
-        totalSlides: match ? Number(match[2]) : null,
+      if (!match) return null;
+      return {
+        ordinal: idx,
+        currentSlide: Number(match[1]),
+        totalSlides: Number(match[2]),
         text: text.slice(0, 400),
-        imageUrls,
-      });
-    }
-
-    return found;
+      };
+    }).filter(Boolean);
   });
 }
 
-async function waitForCounterChange(page, widgetId, previousText, timeoutMs = 35000) {
-  try {
-    await page.waitForFunction(
-      ({ widgetIdInner, previousTextInner }) => {
-        const el = document.querySelector(`[data-openclaw-interactive-id="${widgetIdInner}"]`);
-        if (!el) return false;
+async function bindCurrentWidget(page, widgetOrdinal) {
+  return await page.evaluate((widgetOrdinalInner) => {
+    function isVisible(el, minW = 1, minH = 1) {
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      const st = window.getComputedStyle(el);
+      return rect.width > minW && rect.height > minH && st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+    }
+    function nearestWidgetContainer(nextBtn) {
+      let el = nextBtn;
+      while (el && el !== document.body) {
+        const rect = el.getBoundingClientRect();
         const text = (el.innerText || '').replace(/\s+/g, ' ').trim();
-        return text !== previousTextInner;
-      },
-      { timeout: timeoutMs },
-      { widgetIdInner: widgetId, previousTextInner: previousText }
-    );
-  } catch {}
+        if (rect.width > 300 && rect.height > 220 && /\b\d+\s*\/\s*\d+\b/.test(text)) return el;
+        el = el.parentElement;
+      }
+      return nextBtn.parentElement || nextBtn;
+    }
+
+    document.querySelectorAll('[data-openclaw-capture-target]').forEach((el) => el.removeAttribute('data-openclaw-capture-target'));
+    document.querySelectorAll('[data-openclaw-next-target]').forEach((el) => el.removeAttribute('data-openclaw-next-target'));
+
+    const nextButtons = [...document.querySelectorAll('[data-testid="canvas-animation-next-slide"]')].filter((el) => isVisible(el, 10, 10));
+    const nextBtn = nextButtons[widgetOrdinalInner];
+    if (!nextBtn) return null;
+    const container = nearestWidgetContainer(nextBtn);
+    if (!container || !isVisible(container, 250, 180)) return null;
+    container.setAttribute('data-openclaw-capture-target', '1');
+    nextBtn.setAttribute('data-openclaw-next-target', '1');
+    const text = (container.innerText || '').replace(/\s+/g, ' ').trim();
+    const match = text.match(/\b(\d+)\s*\/\s*(\d+)\b/);
+    return {
+      text,
+      counter: match ? match[0] : null,
+      current: match ? Number(match[1]) : null,
+      total: match ? Number(match[2]) : null,
+    };
+  }, widgetOrdinal);
+}
+
+async function waitForCounterChange(page, widgetOrdinal, previousCounter, timeoutMs = 35000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const state = await bindCurrentWidget(page, widgetOrdinal);
+    if (state && state.counter && state.counter !== previousCounter) return state;
+    await sleep(250);
+  }
+  return null;
 }
 
 async function captureInteractiveWidgets(page, mediaDir, opts = {}) {
@@ -125,57 +100,45 @@ async function captureInteractiveWidgets(page, mediaDir, opts = {}) {
     const widgetNum = String(i + 1).padStart(2, '0');
     const total = Math.min(widget.totalSlides || 1, 20);
     const files = [];
+    let successfulSlides = 0;
 
     for (let slide = 1; slide <= total; slide++) {
-      const handle = await page.$(`[data-openclaw-interactive-id="${widget.widgetId}"]`);
-      if (!handle) break;
+      const state = await bindCurrentWidget(page, widget.ordinal);
+      const handle = await page.$('[data-openclaw-capture-target="1"]');
+      if (!state || !handle) break;
 
       const shotFile = path.join(mediaDir, `interactive-${widgetNum}-slide-${String(slide).padStart(2, '0')}.png`);
       try {
         await handle.screenshot({ path: shotFile });
-        if (fs.existsSync(shotFile) && fs.statSync(shotFile).size > 0) files.push(path.basename(shotFile));
+        if (fs.existsSync(shotFile) && fs.statSync(shotFile).size > 0) {
+          files.push(path.basename(shotFile));
+          successfulSlides += 1;
+        }
       } catch {}
-
-      const imageUrls = await page.evaluate((widgetId) => {
-        const el = document.querySelector(`[data-openclaw-interactive-id="${widgetId}"]`);
-        if (!el) return [];
-        return [...el.querySelectorAll('img')]
-          .map((img) => img.src || '')
-          .filter((src) => src && !src.startsWith('data:'));
-      }, widget.widgetId);
-
-      let imgIndex = 0;
-      for (const imageUrl of imageUrls) {
-        imgIndex += 1;
-        const imgFile = path.join(mediaDir, `interactive-${widgetNum}-slide-${String(slide).padStart(2, '0')}-img-${String(imgIndex).padStart(2, '0')}.png`);
-        if (downloadImage(imageUrl, imgFile)) files.push(path.basename(imgFile));
-      }
 
       if (slide >= total) break;
 
-      const previousText = await page.evaluate((widgetId) => {
-        const el = document.querySelector(`[data-openclaw-interactive-id="${widgetId}"]`);
-        return el ? (el.innerText || '').replace(/\s+/g, ' ').trim() : '';
-      }, widget.widgetId);
-
-      const clicked = await page.evaluate((widgetId) => {
-        const btn = document.querySelector(`[data-openclaw-interactive-next="${widgetId}"]`);
-        if (!btn) return false;
+      const previousCounter = state.counter;
+      const clicked = await page.evaluate(() => {
+        const btn = document.querySelector('[data-openclaw-next-target="1"]');
+        if (!btn || btn.disabled) return false;
         btn.click();
         return true;
-      }, widget.widgetId);
-
+      });
       if (!clicked) break;
-      await waitForCounterChange(page, widget.widgetId, previousText, perSlideDelayMs + 5000);
+
+      const changedState = await waitForCounterChange(page, widget.ordinal, previousCounter, perSlideDelayMs + 5000);
+      if (!changedState) break;
       await sleep(perSlideDelayMs);
       await page.waitForNetworkIdle({ idleTime: 800, timeout: 5000 }).catch(() => {});
     }
 
     const meta = {
-      widgetId: widget.widgetId,
+      ordinal: widget.ordinal,
       totalSlidesDetected: widget.totalSlides,
+      successfulSlides,
       perSlideDelayMs,
-      files: [...new Set(files)],
+      files,
       text: widget.text,
     };
     fs.writeFileSync(path.join(mediaDir, `interactive-${widgetNum}.json`), JSON.stringify(meta, null, 2));
