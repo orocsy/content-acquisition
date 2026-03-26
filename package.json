@@ -1,0 +1,17 @@
+{
+  "name": "content-acquisition",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Browser-driven acquisition tools for structured learning content.",
+  "type": "commonjs",
+  "scripts": {
+    "scrape": "node src/cli/scrape.js",
+    "patch": "node src/cli/patch.js",
+    "educative:run": "node scripts/educative-sequential-scrape.js",
+    "educative:system-design": "./scripts/run-educative-system-design.sh"
+  },
+  "dependencies": {
+    "chrome-cookies-secure": "^3.0.1",
+    "puppeteer": "^24.29.0"
+  }
+}
