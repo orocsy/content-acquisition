@@ -117,16 +117,30 @@ node src/cli/patch.js \
 
 ## PM2
 
-PM2 configs and shell runners remain in `scripts/` and continue to work.
-They point to the legacy `scripts/educative-sequential-scrape.js` entry point
-which still functions independently.
+PM2 wrappers remain in `scripts/`.
+
+### Generic Educative course wrapper
+
+Set the course URL and optional output/app-name env vars, then start the generic PM2 config:
+
+```bash
+export COURSE_URL="https://www.educative.io/interview-prep/system-design/introduction-to-modern-system-design"
+export COURSE_NAME="system-design"
+export PM2_APP_NAME="educative-system-design"
+pm2 start scripts/pm2-educative-course.config.cjs
+pm2 logs "$PM2_APP_NAME"
+```
+
+### Existing course-specific wrapper
+
+The older system-design-specific config still works too:
 
 ```bash
 pm2 start scripts/pm2-educative-system-design.config.cjs
 pm2 logs educative-system-design
 ```
 
-To run the new CLI via PM2, update the `script` path in the config to
+If you prefer to run the new Node CLI directly via PM2, point `script` at
 `src/cli/scrape.js` and set `interpreter: 'node'`.
 
 ## Key behavior (preserved)
@@ -145,4 +159,5 @@ The original scripts remain untouched for backward compatibility:
 - `scripts/educative-sequential-scrape.js` — original monolithic scraper
 - `scripts/run-educative-course.sh` — generic shell wrapper
 - `scripts/run-educative-system-design.sh` — course-specific runner
-- `scripts/pm2-educative-system-design.config.cjs` — PM2 config
+- `scripts/pm2-educative-course.config.cjs` — generic PM2 config for any Educative course
+- `scripts/pm2-educative-system-design.config.cjs` — older course-specific PM2 config

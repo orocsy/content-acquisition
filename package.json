@@ -8,6 +8,7 @@
     "scrape": "node src/cli/scrape.js",
     "patch": "node src/cli/patch.js",
     "educative:run": "node scripts/educative-sequential-scrape.js",
+    "educative:course": "./scripts/run-educative-course.sh",
     "educative:system-design": "./scripts/run-educative-system-design.sh"
   },
   "dependencies": {
