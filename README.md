@@ -193,6 +193,7 @@ Set the course URL and optional output/app-name env vars, then start the generic
 export COURSE_URL="https://www.educative.io/interview-prep/system-design/introduction-to-modern-system-design"
 export COURSE_NAME="system-design"
 export PM2_APP_NAME="educative-system-design"
+export NOTEBOOKLM_PACK=1
 pm2 start scripts/pm2-educative-course.config.cjs
 pm2 logs "$PM2_APP_NAME"
 ```

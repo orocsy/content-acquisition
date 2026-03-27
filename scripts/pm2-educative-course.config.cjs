@@ -23,6 +23,11 @@ module.exports = {
         OUT_DIR: process.env.OUT_DIR,
         CONTENT_ACQUISITION_OUT_DIR: process.env.CONTENT_ACQUISITION_OUT_DIR,
         PM2_APP_NAME: process.env.PM2_APP_NAME,
+        NOTEBOOKLM_PACK: process.env.NOTEBOOKLM_PACK,
+        PACK_OUT_DIR: process.env.PACK_OUT_DIR,
+        PACK_MAX_BYTES: process.env.PACK_MAX_BYTES,
+        PACK_RESERVE_BYTES: process.env.PACK_RESERVE_BYTES,
+        PACK_SEPARATOR: process.env.PACK_SEPARATOR,
       }
     }
   ]

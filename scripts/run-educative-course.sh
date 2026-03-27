@@ -30,12 +30,27 @@ cleanup_pm2() {
   fi
 }
 
-if node src/cli/scrape.js \
-  --provider educative \
-  --url "$COURSE_URL" \
-  --out-dir "$OUT_DIR" \
-  --min-delay-ms 60000 \
+SCRAPE_ARGS=(
+  --provider educative
+  --url "$COURSE_URL"
+  --out-dir "$OUT_DIR"
+  --min-delay-ms 60000
   --max-delay-ms 180000
+)
+
+if [[ "${NOTEBOOKLM_PACK:-0}" == "1" ]]; then
+  SCRAPE_ARGS+=(
+    --notebooklm-pack
+    --pack-max-bytes "${PACK_MAX_BYTES:-180000000}"
+    --pack-reserve-bytes "${PACK_RESERVE_BYTES:-10000000}"
+    --pack-separator "${PACK_SEPARATOR:-blank}"
+  )
+  if [[ -n "${PACK_OUT_DIR:-}" ]]; then
+    SCRAPE_ARGS+=(--pack-out-dir "$PACK_OUT_DIR")
+  fi
+fi
+
+if node src/cli/scrape.js "${SCRAPE_ARGS[@]}"
 then
   notify_done "Educative scrape finished" "$COURSE_NAME completed. PM2 stopped."
   cleanup_pm2
