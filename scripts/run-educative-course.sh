@@ -12,7 +12,7 @@ fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
-OUT_DIR="${OUT_DIR:-$HOME/Documents/educative}"
+OUT_DIR="${OUT_DIR:-${CONTENT_ACQUISITION_OUT_DIR:-$HOME/Documents/educative}}"
 COURSE_NAME="${COURSE_NAME:-$(basename "$COURSE_URL")}" 
 APP_NAME="${PM2_APP_NAME:-educative-course}"
 

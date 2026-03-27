@@ -71,6 +71,20 @@ scripts/            # Legacy shell runners + PM2 config (still working)
 
 See `src/core/provider.js` for the full contract with JSDoc.
 
+## Environment
+
+Optional environment variables:
+
+- `CONTENT_ACQUISITION_OUT_DIR` — default output directory for scraped content
+- `CHROME_PATH` or `BROWSER_EXECUTABLE_PATH` — explicit browser binary path if Puppeteer should not auto-detect one
+
+Example:
+
+```bash
+export CONTENT_ACQUISITION_OUT_DIR="$HOME/Documents/educative"
+export CHROME_PATH="/path/to/chrome"
+```
+
 ## Install
 
 ```bash
@@ -84,12 +98,12 @@ npm install
 node src/cli/scrape.js \
   --provider educative \
   --url "https://www.educative.io/interview-prep/system-design/introduction-to-modern-system-design" \
-  --out-dir ~/Documents/educative \
+  --out-dir "$CONTENT_ACQUISITION_OUT_DIR" \
   --min-delay-ms 60000 \
   --max-delay-ms 180000
 
 # Or via npm script
-npm run scrape -- --url "https://..." --out-dir ~/Documents/educative
+npm run scrape -- --url "https://..." --out-dir "$CONTENT_ACQUISITION_OUT_DIR"
 ```
 
 ### Patch existing lessons
@@ -97,7 +111,7 @@ npm run scrape -- --url "https://..." --out-dir ~/Documents/educative
 ```bash
 node src/cli/patch.js \
   --provider educative \
-  --course-dir ~/Documents/educative/system-design \
+  --course-dir "$CONTENT_ACQUISITION_OUT_DIR/system-design" \
   --skip-videos
 ```
 

@@ -85,24 +85,28 @@ class EducativeProvider extends BaseProvider {
     const fs = require('fs');
 
     function pickExecutablePath() {
-      const env = process.env.CHROME_PATH;
-      if (env && fs.existsSync(env)) return env;
-      const installed = [
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        '/Applications/Chromium.app/Contents/MacOS/Chromium',
-      ].find((c) => fs.existsSync(c));
-      if (installed) return installed;
+      const candidates = [
+        process.env.CHROME_PATH,
+        process.env.BROWSER_EXECUTABLE_PATH,
+        opts.executablePath,
+      ].filter(Boolean);
+
+      for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) return candidate;
+      }
+
       try {
         const bundled = puppeteer.executablePath();
         if (bundled && fs.existsSync(bundled)) return bundled;
       } catch {}
-      return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+
+      return undefined;
     }
 
-    const executablePath = opts.executablePath || pickExecutablePath();
+    const executablePath = pickExecutablePath();
     const browser = await puppeteer.launch({
       headless: opts.headless !== false,
-      executablePath,
+      ...(executablePath ? { executablePath } : {}),
       defaultViewport: { width: 1440, height: 900 },
       args: ['--no-first-run', '--disable-dev-shm-usage', '--disable-blink-features=AutomationControlled'],
       ignoreDefaultArgs: ['--enable-automation'],

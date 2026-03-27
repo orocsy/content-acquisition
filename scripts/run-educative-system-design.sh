@@ -4,7 +4,7 @@ set -euo pipefail
 APP_NAME="educative-system-design"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
-OUT_DIR="${OUT_DIR:-$HOME/Documents/educative}"
+OUT_DIR="${OUT_DIR:-${CONTENT_ACQUISITION_OUT_DIR:-$HOME/Documents/educative}}"
 COURSE_SLUG="system-design"
 COURSE_DIR="$OUT_DIR/$COURSE_SLUG"
 COMPLETION_FILE="$COURSE_DIR/completion.json"
@@ -28,7 +28,8 @@ cleanup_pm2() {
 on_success() {
   python3 - <<'PY'
 import json, os, pathlib, datetime
-course_dir = pathlib.Path(os.environ.get('COURSE_DIR', os.path.expanduser('~/Documents/educative/system-design')))
+default_course_dir = pathlib.Path(os.environ.get('CONTENT_ACQUISITION_OUT_DIR', os.path.expanduser('~/Documents/educative'))) / 'system-design'
+course_dir = pathlib.Path(os.environ.get('COURSE_DIR', default_course_dir))
 manifest_path = course_dir / 'manifest.json'
 out_path = course_dir / 'completion.json'
 manifest = {}

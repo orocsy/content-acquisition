@@ -10,7 +10,7 @@
  * Options:
  *   --provider <name>         Provider to use (default: educative)
  *   --url <url>               Starting lesson URL (required)
- *   --out-dir <path>          Base output directory (default: ~/Documents/educative)
+ *   --out-dir <path>          Base output directory (default: $CONTENT_ACQUISITION_OUT_DIR or ~/Documents/educative)
  *   --executable-path <path>  Browser binary path
  *   --timeout-ms <n>          Navigation timeout in ms (default: 60000)
  *   --min-delay-ms <n>        Min delay between lessons (default: 60000)
@@ -30,7 +30,7 @@ const { runScrape } = require('../dispatch/actions/scrape');
 // Register known providers
 registerProvider(require('../providers/educative'));
 
-const DEFAULT_OUT_DIR = path.join(process.env.HOME || os.homedir(), 'Documents/educative');
+const DEFAULT_OUT_DIR = process.env.CONTENT_ACQUISITION_OUT_DIR || path.join(process.env.HOME || os.homedir(), 'Documents/educative');
 
 function parseArgs(argv) {
   const args = {
