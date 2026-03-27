@@ -18,6 +18,8 @@
  *   --headful                 Run browser in headed mode
  *   --skip-videos             Skip video downloads
  *   --skip-pdf                Skip PDF generation
+ *   --skip-interactive        Skip carousel/interactive screenshot capture
+ *   --interactive-slide-delay-ms <n>  Wait per interactive slide in ms (default: 30000)
  *   --no-resume               Start fresh (ignore saved state)
  *   --refresh-curriculum      Re-discover curriculum even if cached
  *   --notebooklm-pack         Incrementally maintain merged NotebookLM-ready PDFs
@@ -49,6 +51,8 @@ function parseArgs(argv) {
     maxDelayMs: 180000,
     skipVideos: false,
     skipPdf: false,
+    skipInteractive: false,
+    interactiveSlideDelayMs: 30000,
     resume: true,
     refreshCurriculum: false,
     notebooklmPack: false,
@@ -71,6 +75,8 @@ function parseArgs(argv) {
     else if (a === '--headless') args.headless = true;
     else if (a === '--skip-videos') args.skipVideos = true;
     else if (a === '--skip-pdf') args.skipPdf = true;
+    else if (a === '--skip-interactive') args.skipInteractive = true;
+    else if (a === '--interactive-slide-delay-ms' && n) { args.interactiveSlideDelayMs = Number(n); i++; }
     else if (a === '--no-resume') args.resume = false;
     else if (a === '--refresh-curriculum') args.refreshCurriculum = true;
     else if (a === '--notebooklm-pack') args.notebooklmPack = true;
@@ -91,6 +97,8 @@ function parseArgs(argv) {
     console.error('  --headful                 Headed browser mode');
     console.error('  --skip-videos             Skip video downloads');
     console.error('  --skip-pdf                Skip PDF generation');
+    console.error('  --skip-interactive        Skip carousel/interactive capture');
+    console.error('  --interactive-slide-delay-ms <n>  Wait per interactive slide');
     console.error('  --no-resume               Ignore saved state');
     console.error('  --refresh-curriculum      Re-discover curriculum');
     console.error('  --notebooklm-pack         Maintain merged NotebookLM-ready PDFs');

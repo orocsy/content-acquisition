@@ -23,6 +23,8 @@
  *   maxDelayMs       — max inter-lesson delay
  *   skipVideos       — bool
  *   skipPdf          — bool
+ *   skipInteractive  — bool
+ *   interactiveSlideDelayMs — per-slide wait when capturing interactive widgets
  *   resume           — bool
  *   refreshCurriculum — bool
  */
@@ -53,6 +55,7 @@ const {
 } = require('../../core/course-map');
 const pdfAction = require('./pdf');
 const videoAction = require('./video');
+const interactiveAction = require('./interactive');
 const { appendIncrementalPdf } = require('../../core/pdf-pack-builder');
 
 async function runScrape(opts) {
@@ -194,9 +197,10 @@ async function runScrape(opts) {
 
       const videoFiles = [];
       let videoDownloaded = 0;
+      let mediaDir = null;
       if (!opts.skipVideos && videoSourceUrls.length > 0) {
         console.error(`  [video] ${videoSourceUrls.length} source(s) found`);
-        const mediaDir = path.join(lessonDir, 'media');
+        mediaDir = path.join(lessonDir, 'media');
         safeMkdir(mediaDir);
         for (const videoUrl of videoSourceUrls) {
           const result = videoAction.downloadVideo(videoUrl, mediaDir);
@@ -204,6 +208,24 @@ async function runScrape(opts) {
             videoDownloaded += 1;
             videoFiles.push(...result.files);
           }
+        }
+      }
+
+      if (!opts.skipInteractive) {
+        try {
+          const widgets = await interactiveAction.discoverInteractiveWidgets(page);
+          if (widgets.length > 0) {
+            mediaDir = mediaDir || path.join(lessonDir, 'media');
+            safeMkdir(mediaDir);
+            const captures = await interactiveAction.captureInteractiveWidgets(page, mediaDir, {
+              perSlideDelayMs: Number(opts.interactiveSlideDelayMs || 30000),
+            });
+            if (captures.length > 0) {
+              console.error(`  [interactive] ${captures.length} widget(s) captured`);
+            }
+          }
+        } catch (err) {
+          console.error(`  [interactive] capture failed: ${String(err)}`);
         }
       }
 

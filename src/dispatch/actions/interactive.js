@@ -149,5 +149,6 @@ async function captureInteractiveWidgets(page, mediaDir, opts = {}) {
 }
 
 module.exports = {
+  discoverInteractiveWidgets,
   captureInteractiveWidgets,
 };
