@@ -7,12 +7,15 @@
   "scripts": {
     "scrape": "node src/cli/scrape.js",
     "patch": "node src/cli/patch.js",
+    "notebooklm:plan": "node src/cli/notebooklm-plan.js",
+    "notebooklm:merge": "node src/cli/merge-pdfs.js",
     "educative:run": "node scripts/educative-sequential-scrape.js",
     "educative:course": "./scripts/run-educative-course.sh",
     "educative:system-design": "./scripts/run-educative-system-design.sh"
   },
   "dependencies": {
     "chrome-cookies-secure": "^3.0.1",
+    "pdf-lib": "^1.17.1",
     "puppeteer": "^24.29.0"
   }
 }

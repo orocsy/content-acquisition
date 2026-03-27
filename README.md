@@ -12,6 +12,7 @@ src/
 ├── core/           # Provider-agnostic utilities and state management
 │   ├── provider.js     # BaseProvider contract (extend to add a new provider)
 │   ├── course-map.js   # Course graph/curriculum cache (course-map.json)
+│   ├── pdf-pack-builder.js # NotebookLM-ready merged PDF pack planner/builder
 │   ├── state.js        # Resume state + manifest management
 │   └── utils.js        # Shared helpers (fs, sleep, slugify, etc.)
 │
@@ -32,8 +33,10 @@ src/
 │       └── video.js    # Video interception + yt-dlp download
 │
 └── cli/            # Thin CLI entry points
-    ├── scrape.js   # node src/cli/scrape.js --url <url> [options]
-    └── patch.js    # node src/cli/patch.js --course-dir <path> [options]
+    ├── scrape.js          # node src/cli/scrape.js --url <url> [options]
+    ├── patch.js           # node src/cli/patch.js --course-dir <path> [options]
+    ├── notebooklm-plan.js # dry-run pack planning under NotebookLM file-size limits
+    └── merge-pdfs.js      # build/update merged NotebookLM-ready PDF packs
 
 scripts/            # Legacy shell runners + PM2 config (still working)
 ```
@@ -47,6 +50,8 @@ scripts/            # Legacy shell runners + PM2 config (still working)
 | **patch** | `src/dispatch/actions/patch.js` | Re-process already-captured lessons without a full scrape run |
 | **pdf** | `src/dispatch/actions/pdf.js` | Capture a Puppeteer PDF of the current page |
 | **video** | `src/dispatch/actions/video.js` | Intercept streaming URLs + yt-dlp download |
+| **notebooklm-plan** | `src/cli/notebooklm-plan.js` | Dry-run planner: estimate how many merged PDFs are needed under the configured file-size cap |
+| **merge-pdfs** | `src/cli/merge-pdfs.js` | Build or incrementally update merged PDF packs with optional blank-page separators |
 | **course-map** | `src/core/course-map.js` | Persistent graph of discovered URLs and curriculum order |
 | **state** | `src/core/state.js` | `.resume-state.json` + `manifest.json` bookkeeping |
 | **registry** | `src/dispatch/registry.js` | Maps provider names → instances |
@@ -114,6 +119,67 @@ node src/cli/patch.js \
   --course-dir "$CONTENT_ACQUISITION_OUT_DIR/system-design" \
   --skip-videos
 ```
+
+## NotebookLM-ready merged PDF packs
+
+This project can maintain a second layer of output specifically for NotebookLM:
+small lesson PDFs stay untouched, while merged "pack" PDFs are built from them.
+
+Why this exists:
+- NotebookLM works better with fewer, larger sources than hundreds of tiny PDFs
+- each uploaded file must stay under NotebookLM's file-size limit
+- a single notebook can then hold a much more complete course knowledge base
+
+### Phase 1: pre-check / dry-run plan
+
+```bash
+node src/cli/notebooklm-plan.js \
+  --root "$CONTENT_ACQUISITION_OUT_DIR/system-design" \
+  --out-dir "$CONTENT_ACQUISITION_OUT_DIR/system-design/_notebooklm" \
+  --prefix system-design-pack \
+  --max-bytes 180000000 \
+  --reserve-bytes 10000000
+```
+
+This recursively finds `page.pdf` files, sorts them by path, and estimates how
+many merged packs are needed before building anything.
+
+### Phase 2: build merged packs
+
+```bash
+node src/cli/merge-pdfs.js \
+  --root "$CONTENT_ACQUISITION_OUT_DIR/system-design" \
+  --out-dir "$CONTENT_ACQUISITION_OUT_DIR/system-design/_notebooklm" \
+  --prefix system-design-pack \
+  --max-bytes 180000000 \
+  --reserve-bytes 10000000 \
+  --separator blank
+```
+
+Behavior:
+- recursively finds lesson PDFs under `--root`
+- keeps the original tiny PDFs unchanged
+- inserts a blank page between merged lessons when `--separator blank`
+- writes a manifest to `<out-dir>/manifest.json`
+- removes obsolete pack PDFs when rebuilding
+
+### Phase 3: incremental update after scraping
+
+The scrape CLI can update merged packs after each successful lesson PDF:
+
+```bash
+node src/cli/scrape.js \
+  --provider educative \
+  --url "https://www.educative.io/interview-prep/system-design/introduction-to-modern-system-design" \
+  --out-dir "$CONTENT_ACQUISITION_OUT_DIR" \
+  --notebooklm-pack \
+  --pack-max-bytes 180000000 \
+  --pack-reserve-bytes 10000000 \
+  --pack-separator blank
+```
+
+This keeps `<courseDir>/_notebooklm/` up to date incrementally as new lesson
+PDFs are captured.
 
 ## PM2
 

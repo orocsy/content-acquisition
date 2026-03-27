@@ -20,6 +20,11 @@
  *   --skip-pdf                Skip PDF generation
  *   --no-resume               Start fresh (ignore saved state)
  *   --refresh-curriculum      Re-discover curriculum even if cached
+ *   --notebooklm-pack         Incrementally maintain merged NotebookLM-ready PDFs
+ *   --pack-out-dir <path>     Output dir for merged packs (default: <courseDir>/_notebooklm)
+ *   --pack-max-bytes <n>      Max uploaded-file bytes target before reserve (default: 180000000)
+ *   --pack-reserve-bytes <n>  Headroom reserved below max (default: 10000000)
+ *   --pack-separator <mode>   blank|none (default: blank)
  */
 
 const os = require('os');
@@ -46,6 +51,11 @@ function parseArgs(argv) {
     skipPdf: false,
     resume: true,
     refreshCurriculum: false,
+    notebooklmPack: false,
+    packOutDir: undefined,
+    packMaxBytes: 180000000,
+    packReserveBytes: 10000000,
+    packSeparator: 'blank',
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -63,6 +73,11 @@ function parseArgs(argv) {
     else if (a === '--skip-pdf') args.skipPdf = true;
     else if (a === '--no-resume') args.resume = false;
     else if (a === '--refresh-curriculum') args.refreshCurriculum = true;
+    else if (a === '--notebooklm-pack') args.notebooklmPack = true;
+    else if (a === '--pack-out-dir' && n) { args.packOutDir = n.replace(/^~/, process.env.HOME); i++; }
+    else if (a === '--pack-max-bytes' && n) { args.packMaxBytes = Number(n); i++; }
+    else if (a === '--pack-reserve-bytes' && n) { args.packReserveBytes = Number(n); i++; }
+    else if (a === '--pack-separator' && n) { args.packSeparator = n; i++; }
   }
 
   if (!args.url) {
@@ -78,6 +93,11 @@ function parseArgs(argv) {
     console.error('  --skip-pdf                Skip PDF generation');
     console.error('  --no-resume               Ignore saved state');
     console.error('  --refresh-curriculum      Re-discover curriculum');
+    console.error('  --notebooklm-pack         Maintain merged NotebookLM-ready PDFs');
+    console.error('  --pack-out-dir <path>     Pack output directory');
+    console.error('  --pack-max-bytes <n>      Pack max bytes before reserve');
+    console.error('  --pack-reserve-bytes <n>  Headroom below pack max');
+    console.error('  --pack-separator <mode>   blank|none');
     process.exit(1);
   }
 

@@ -53,6 +53,7 @@ const {
 } = require('../../core/course-map');
 const pdfAction = require('./pdf');
 const videoAction = require('./video');
+const { appendIncrementalPdf } = require('../../core/pdf-pack-builder');
 
 async function runScrape(opts) {
   const { provider } = opts;
@@ -214,6 +215,28 @@ async function runScrape(opts) {
         videoFiles: [...new Set(videoFiles)],
       });
       console.error(`  ✓ "${title}" — ${videoDownloaded} video(s)`);
+
+      if (opts.notebooklmPack && pdfOk) {
+        try {
+          const pdfPath = path.join(lessonDir, 'page.pdf');
+          const packManifest = await appendIncrementalPdf({
+            root: courseDir,
+            outDir: opts.packOutDir || path.join(courseDir, '_notebooklm'),
+            incrementalPdf: pdfPath,
+            maxBytes: opts.packMaxBytes,
+            reserveBytes: opts.packReserveBytes,
+            separator: opts.packSeparator,
+            pattern: 'page.pdf',
+            recursive: true,
+            prefix: `${courseSlug}-pack`,
+            sort: 'path',
+          });
+          console.error(`  [notebooklm] ${packManifest.packs.length} pack(s) updated`);
+        } catch (err) {
+          console.error(`  [notebooklm] pack update failed: ${String(err)}`);
+        }
+      }
+
       writeJson(path.join(courseDir, '.resume-state.json'), state);
       writeManifestFromState({ manifestPath: path.join(courseDir, 'manifest.json'), state, stopReason: null });
       videoAction.writeVideoLessonsIndex(courseDir, Object.values(state.lessons));
