@@ -89,9 +89,10 @@ async function runScrape(opts) {
   console.error(`[course] delay: ${formatMs(opts.minDelayMs)} – ${formatMs(opts.maxDelayMs)}`);
   console.error(`[resume] mode=${resumePlan.mode} url=${resumePlan.url}`);
 
-  const { browser, page } = await provider.setupBrowser({
+  const { browser, page, ownsBrowser = true } = await provider.setupBrowser({
     headless: opts.headless !== false,
     executablePath: opts.executablePath,
+    browserWsEndpoint: opts.browserWsEndpoint,
   });
 
   await page.setRequestInterception(true);
@@ -101,6 +102,13 @@ async function runScrape(opts) {
   page.setDefaultTimeout(opts.timeoutMs || 60000);
 
   await page.goto(resumePlan.url, { waitUntil: ['domcontentloaded', 'networkidle2'], timeout: opts.timeoutMs || 60000 });
+  await waitStable(page, opts.timeoutMs);
+  await provider.assertPageAccess(page, {
+    ...ctx,
+    stage: 'initial',
+    currentUrl: provider.normalizeUrl(page.url()),
+    timeoutMs: opts.timeoutMs,
+  });
 
   // ── Curriculum discovery ───────────────────────────────────────────────────
 
@@ -177,15 +185,49 @@ async function runScrape(opts) {
       await sleep(1500 + Math.random() * 1000);
       await waitStable(page, opts.timeoutMs);
 
+      await provider.assertPageAccess(page, {
+        ...ctx,
+        stage: 'before-capture',
+        currentUrl,
+        lessonDir,
+        timeoutMs: opts.timeoutMs,
+      });
+
       // Extract metadata
       const rawHtml = await page.content();
       const rawTitle = await page.title();
-      const title = provider.cleanTitle ? provider.cleanTitle(rawTitle) : rawTitle.trim();
+      let title = provider.cleanTitle ? provider.cleanTitle(rawTitle) : rawTitle.trim();
+      try {
+        const extractedTitle = await provider.extractLessonTitle(page, {
+          ...ctx,
+          currentUrl,
+          index,
+          rawHtml,
+          rawTitle,
+          curriculumOrderedLessons,
+          courseMap,
+        });
+        if (typeof extractedTitle === 'string' && extractedTitle.trim()) title = extractedTitle.trim();
+      } catch (err) {
+        console.error(`  [title] extraction failed: ${String(err)}`);
+      }
+      if (!title) title = provider.lessonSlugFromUrl(currentUrl, `page-${index}`);
 
       // PDF
       let pdfOk = false;
       if (!opts.skipPdf) {
-        pdfOk = await pdfAction.capturePdf(page, path.join(lessonDir, 'page.pdf'));
+        if (typeof provider.capturePdf === 'function') {
+          pdfOk = await provider.capturePdf(page, path.join(lessonDir, 'page.pdf'), {
+            ...ctx,
+            currentUrl,
+            lessonDir,
+            index,
+            curriculumOrderedLessons,
+            timeoutMs: opts.timeoutMs,
+          });
+        } else {
+          pdfOk = await pdfAction.capturePdf(page, path.join(lessonDir, 'page.pdf'));
+        }
       }
 
       // Video
@@ -290,7 +332,7 @@ async function runScrape(opts) {
   writeJson(path.join(courseDir, '.resume-state.json'), state);
   writeManifestFromState({ manifestPath: path.join(courseDir, 'manifest.json'), state, stopReason });
   videoAction.writeVideoLessonsIndex(courseDir, Object.values(state.lessons));
-  await browser.close();
+  if (ownsBrowser) await browser.close();
 
   return {
     ok: true,
@@ -304,8 +346,15 @@ async function runScrape(opts) {
 
 async function waitStable(page, timeoutMs) {
   const t = timeoutMs || 60000;
-  await page.waitForNetworkIdle({ idleTime: 1200, timeout: Math.min(t, 15000) }).catch(() => {});
-  await page.waitForFunction(() => document.readyState === 'complete', { timeout: Math.min(t, 8000) }).catch(() => {});
+  try {
+    await page.waitForNetworkIdle({ idleTime: 1200, timeout: Math.min(t, 15000) }).catch(() => {});
+    await page.waitForFunction(() => document.readyState === 'complete', { timeout: Math.min(t, 8000) }).catch((err) => {
+      if (/detached frame/i.test(String(err))) return;
+    });
+  } catch (err) {
+    if (/detached frame/i.test(String(err))) return;
+    throw err;
+  }
 }
 
 async function humanScroll(page) {

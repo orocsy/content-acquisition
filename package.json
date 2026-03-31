@@ -11,11 +11,15 @@
     "notebooklm:merge": "node src/cli/merge-pdfs.js",
     "educative:run": "node scripts/educative-sequential-scrape.js",
     "educative:course": "./scripts/run-educative-course.sh",
-    "educative:system-design": "./scripts/run-educative-system-design.sh"
+    "educative:system-design": "./scripts/run-educative-system-design.sh",
+    "alex-xu:existing-session:capture": "node scripts/bytebytego-existing-session-capture.js",
+    "alex-xu:existing-session:render": "node scripts/alex_xu-existing-session-render.js",
+    "alex-xu:existing-session:course": "node scripts/alex_xu-existing-session-course.js"
   },
   "dependencies": {
     "chrome-cookies-secure": "^3.0.1",
     "pdf-lib": "^1.17.1",
+    "playwright": "^1.58.2",
     "puppeteer": "^24.29.0"
   }
 }

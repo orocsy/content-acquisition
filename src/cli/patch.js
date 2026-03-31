@@ -33,6 +33,7 @@ function normalizeActions(raw) {
 }
 
 registerProvider(require('../providers/educative'));
+registerProvider(require('../providers/bytebytego'));
 
 function parseArgs(argv) {
   const args = {

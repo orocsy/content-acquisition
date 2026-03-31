@@ -24,6 +24,9 @@ function registerProvider(provider) {
     throw new Error('registerProvider: provider must have a .name property');
   }
   providers.set(provider.name, provider);
+  for (const alias of provider.aliases || []) {
+    if (alias && typeof alias === 'string') providers.set(alias, provider);
+  }
 }
 
 /**

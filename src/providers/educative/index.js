@@ -84,6 +84,13 @@ class EducativeProvider extends BaseProvider {
     const puppeteer = require('puppeteer');
     const fs = require('fs');
 
+    if (opts.browserWsEndpoint) {
+      const browser = await puppeteer.connect({ browserWSEndpoint: opts.browserWsEndpoint });
+      const pages = await browser.pages();
+      const page = pages.find((candidate) => /^https?:/i.test(candidate.url() || '')) || await browser.newPage();
+      return { browser, page, ownsBrowser: false };
+    }
+
     function pickExecutablePath() {
       const candidates = [
         process.env.CHROME_PATH,
@@ -112,7 +119,7 @@ class EducativeProvider extends BaseProvider {
       ignoreDefaultArgs: ['--enable-automation'],
     });
     const page = await browser.newPage();
-    return { browser, page };
+    return { browser, page, ownsBrowser: true };
   }
 
   async applyAuth(page, url) {

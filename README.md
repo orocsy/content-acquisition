@@ -17,6 +17,12 @@ src/
 │   └── utils.js        # Shared helpers (fs, sleep, slugify, etc.)
 │
 ├── providers/      # One directory per content platform
+│   ├── bytebytego/
+│   │   ├── index.js    # ByteByteGoProvider (extends BaseProvider)
+│   │   └── lib/
+│   │       ├── curriculum.js   # __NEXT_DATA__ + sidebar curriculum discovery
+│   │       ├── navigation.js   # Direct-URL progression helpers
+│   │       └── utils.js        # ByteByteGo-specific URL normalization
 │   └── educative/
 │       ├── index.js    # EducativeProvider (extends BaseProvider)
 │       └── lib/
@@ -83,6 +89,11 @@ Optional environment variables:
 - `CONTENT_ACQUISITION_OUT_DIR` — default output directory for scraped content
 - `CHROME_PATH` or `BROWSER_EXECUTABLE_PATH` — explicit browser binary path if Puppeteer should not auto-detect one
 
+Provider-specific default output roots when `--out-dir` is omitted:
+
+- `educative` → `~/Documents/educative`
+- `bytebytego` → `~/Documents/alex_ux`
+
 Example:
 
 ```bash
@@ -109,6 +120,18 @@ node src/cli/scrape.js \
 
 # Or via npm script
 npm run scrape -- --url "https://..." --out-dir "$CONTENT_ACQUISITION_OUT_DIR"
+```
+
+ByteByteGo example:
+
+```bash
+node src/cli/scrape.js \
+  --provider bytebytego \
+  --url "https://bytebytego.com/courses/<course-slug>/<lesson-slug>" \
+  --min-delay-ms 60000 \
+  --max-delay-ms 180000
+
+# default output root: ~/Documents/alex_ux/<course-slug>
 ```
 
 ### Patch existing lessons

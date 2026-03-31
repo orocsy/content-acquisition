@@ -78,6 +78,12 @@ async function runPatch(opts) {
 
     console.error(`[patch] ${lesson.url}`);
     await page.goto(lesson.url, { waitUntil: ['domcontentloaded', 'networkidle2'], timeout: opts.timeoutMs || 60000 });
+    await provider.assertPageAccess(page, {
+      stage: 'patch',
+      lessonUrl: lesson.url,
+      currentUrl: provider.normalizeUrl(page.url()),
+      timeoutMs: opts.timeoutMs,
+    });
 
     if (needsPdf) {
       safeMkdir(lessonDir);

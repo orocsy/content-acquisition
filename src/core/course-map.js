@@ -84,6 +84,7 @@ function mergeCurriculum(map, curriculum, normalizeUrl) {
     courseRootUrl: curriculum.courseRootUrl,
     title: curriculum.title,
     headings: curriculum.headings || [],
+    tocTree: curriculum.tocTree || [],
     orderedLessons: curriculum.orderedLessons || [],
     updatedAt: new Date().toISOString(),
   };
