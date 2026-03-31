@@ -20,6 +20,7 @@ const {
   findNextLessonIndex,
 } = require('../src/core/state');
 const { readCourseMap, writeCourseMap, mergeCurriculum } = require('../src/core/course-map');
+const { appendIncrementalPdf } = require('../src/core/pdf-pack-builder');
 
 const BROWSER_PROFILE = process.env.OPENCLAW_BROWSER_PROFILE || 'user';
 const MAX_RETRIES = Number(process.env.ALEX_XU_COURSE_RETRIES || 4);
@@ -127,6 +128,22 @@ function hasValidPdf(pdfPath) {
   }
 }
 
+async function updatePdfPackIfNeeded({ enabled, courseDir, courseSlug, pdfPath, packOutDir, packMaxBytes, packReserveBytes, packSeparator }) {
+  if (!enabled || !hasValidPdf(pdfPath)) return null;
+  return appendIncrementalPdf({
+    root: courseDir,
+    outDir: packOutDir || path.join(courseDir, '_notebooklm'),
+    incrementalPdf: pdfPath,
+    maxBytes: packMaxBytes,
+    reserveBytes: packReserveBytes,
+    separator: packSeparator,
+    pattern: 'page.pdf',
+    recursive: true,
+    prefix: `${courseSlug}-pack`,
+    sort: 'path',
+  });
+}
+
 async function renderLesson(url, lessonDir) {
   const stdout = execFileSync('node', [
     path.join(__dirname, 'alex_xu-existing-session-render.js'),
@@ -182,6 +199,11 @@ async function main() {
   let fromIndex = null;
   let toIndex = null;
   let continueAfterRange = false;
+  let notebooklmPack = false;
+  let packOutDir = null;
+  let packMaxBytes = 180000000;
+  let packReserveBytes = 10000000;
+  let packSeparator = 'blank';
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], n = argv[i + 1];
     if (a === '--url' && n) { url = n; i++; }
@@ -190,10 +212,15 @@ async function main() {
     else if (a === '--from-index' && n) { fromIndex = Number(n); i++; }
     else if (a === '--to-index' && n) { toIndex = Number(n); i++; }
     else if (a === '--continue-after-range') { continueAfterRange = true; }
+    else if (a === '--notebooklm-pack') { notebooklmPack = true; }
+    else if (a === '--pack-out-dir' && n) { packOutDir = n.replace(/^~/, process.env.HOME); i++; }
+    else if (a === '--pack-max-bytes' && n) { packMaxBytes = Number(n); i++; }
+    else if (a === '--pack-reserve-bytes' && n) { packReserveBytes = Number(n); i++; }
+    else if (a === '--pack-separator' && n) { packSeparator = n; i++; }
   }
 
   if (!url) {
-    console.error('Usage: node scripts/alex_xu-existing-session-course.js --url <lesson-url> [--out-dir <path>] [--no-resume] [--from-index N --to-index M --continue-after-range]');
+    console.error('Usage: node scripts/alex_xu-existing-session-course.js --url <lesson-url> [--out-dir <path>] [--no-resume] [--from-index N --to-index M --continue-after-range] [--notebooklm-pack] [--pack-out-dir <path>]');
     process.exit(1);
   }
 
@@ -300,12 +327,45 @@ async function main() {
       });
       writeJson(path.join(courseDir, '.resume-state.json'), state);
       writeManifestFromState({ manifestPath: loaded.manifestPath, state, stopReason: null });
-      results.push({ index, url: lessonUrl, dir, skipped: true });
+      let packManifest = null;
+      try {
+        packManifest = await updatePdfPackIfNeeded({
+          enabled: notebooklmPack,
+          courseDir,
+          courseSlug: ctx.courseSlug,
+          pdfPath,
+          packOutDir,
+          packMaxBytes,
+          packReserveBytes,
+          packSeparator,
+        });
+      } catch (err) {
+        console.error(`  [notebooklm] pack update failed on skipped lesson: ${String(err?.message || err)}`);
+      }
+      results.push({ index, url: lessonUrl, dir, skipped: true, notebooklmPacks: packManifest?.packs?.length || 0 });
       continue;
     }
 
     console.error(`[lesson ${index}/${orderedLessons.length}] ${lesson.title} → ${lessonUrl}${inForcedRange ? ' [forced-rerun]' : ''}`);
     const rendered = await renderLesson(lessonUrl, lessonDir);
+    let packManifest = null;
+    try {
+      packManifest = await updatePdfPackIfNeeded({
+        enabled: notebooklmPack,
+        courseDir,
+        courseSlug: ctx.courseSlug,
+        pdfPath,
+        packOutDir,
+        packMaxBytes,
+        packReserveBytes,
+        packSeparator,
+      });
+      if (packManifest) {
+        console.error(`  [notebooklm] ${packManifest.packs.length} pack(s) updated`);
+      }
+    } catch (err) {
+      console.error(`  [notebooklm] pack update failed: ${String(err?.message || err)}`);
+    }
 
     markLessonDone({
       state,
@@ -323,7 +383,14 @@ async function main() {
     state.lastRunAt = new Date().toISOString();
     writeJson(path.join(courseDir, '.resume-state.json'), state);
     writeManifestFromState({ manifestPath: loaded.manifestPath, state, stopReason: null });
-    results.push({ index, url: lessonUrl, dir, forced: inForcedRange, render: rendered.render || rendered });
+    results.push({
+      index,
+      url: lessonUrl,
+      dir,
+      forced: inForcedRange,
+      render: rendered.render || rendered,
+      notebooklmPacks: packManifest?.packs?.length || 0,
+    });
   }
 
   writeManifestFromState({ manifestPath: loaded.manifestPath, state, stopReason: 'completed' });
